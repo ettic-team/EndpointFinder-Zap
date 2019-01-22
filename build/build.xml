@@ -1,0 +1,163 @@
+<project name="ZAP-Extensions (Alpha)" default="build" basedir=".">
+	<description>Build ZAP extensions</description>
+
+	<property name="src" location="../src" />
+	<property name="src.version" value="1.8" />
+	<property name="test.src" location="../test" />
+	<property name="test.lib" location="../testlib" />
+	<property name="test.build" location="buildtest" />
+	<property name="test.results.dir" value="results" />
+	<property name="build" location="build" />
+	<property name="build.lib.dir" location="lib" />
+	<property name="temp" location="temp" />
+	<property name="dist" location="zap-exts" />
+	<property name="dist.lib.dir" location="../lib" />
+	<property name="versions.file" location="${dist}/ZapVersions.xml" />
+	<property name="wiki.dir" location="../../zap-extensions-wiki" />
+	<property name="wiki.zapcorehelp.dir" location="../../zap-core-help-wiki" />
+	<!-- This assumes you also have the zaproxy project -->
+	<property name="zap.plugin.dir" location="../../zaproxy/src/plugin" />
+	<property name="zap.download.url" value="https://github.com/zaproxy/zap-extensions/releases/download/2.7" />
+
+	<path id="build.classpath">
+		   <fileset dir="${build.lib.dir}" includes="*.jar"/>
+	</path>
+
+	<!-- Ant task to generate the wiki -->
+	<taskdef classpathref="build.classpath" resource="wikitasks.properties" />
+
+	<!-- Ant task to generate JavaHelp search indexes -->
+	<taskdef classpathref="build.classpath" resource="javahelptasks.properties" />
+
+	<!-- Ant task to append ZapAddOn.xml files to ZapVersions.xml -->
+	<taskdef classpathref="build.classpath" resource="zapversionstasks.properties"/>
+	
+	<target name="clean">
+		<delete dir="${dist}" includeEmptyDirs="true" />
+		<delete dir="${build}" includeEmptyDirs="true" />
+		<delete dir="${temp}" includeEmptyDirs="true" />
+	</target>
+
+
+	<target name="init">
+		<!-- Create the build directory structure used by compile -->
+		<mkdir dir="${dist}" />
+		<mkdir dir="${build}" />
+		<mkdir dir="${temp}" />
+	</target>
+
+	<target name="compile" depends="init" description="compile the source">
+		<echo message="Compiling the source..." />
+		
+		<!-- Compile the java code from ${src} into ${build} -->
+		<javac srcdir="${src}" destdir="${build}" source="${src.version}" target="${src.version}" includeantruntime="false" debug="true" encoding="UTF-8"
+			excludes="org/zaproxy/zap/extension/*/files/**,org/zaproxy/zap/extension/*/resources/**">
+			<compilerarg value="-Xlint:all"/>
+			<compilerarg value="-Xlint:-path"/>
+			<compilerarg value="-Xlint:-options"/>
+			<!--compilerarg value="-Werror"/-->
+			<classpath>
+				<fileset dir="${dist.lib.dir}">
+					<include name="**/*.jar" />
+					<include name="**/*.zap" />
+				</fileset>
+				
+				<fileset dir="${src}">
+					<include name="**/*.jar" />
+				</fileset>
+			</classpath>
+		</javac>
+	</target>
+
+	<!--
+	 Build the specified extension
+	 version should be an integer that increments on each release, starting at 1
+	 -->
+
+	<macrodef name="build-addon-without-help-indexes" description="build the specified addon">
+				<attribute name="name"/>
+				<attribute name="addonid" default="@{name}" />
+				<element name="extra-actions" implicit="true" optional="true" />
+				<sequential>
+					<local name="zapaddon.version" />
+					<xmlproperty file="${src}/org/zaproxy/zap/extension/@{name}/ZapAddOn.xml"/>
+					<local name="zapaddon.status" />
+					<xmlproperty file="${src}/org/zaproxy/zap/extension/@{name}/ZapAddOn.xml"/>
+					<local name="file" />
+					<property name="file" value="@{addonid}-${zapaddon.status}-${zapaddon.version}.zap" />
+
+					<local name="addon.libs.zip" />
+					<property name="addon.libs.zip" value="${temp}/libs-@{name}.zip" />
+
+					<delete file="${addon.libs.zip}" failonerror="true" />
+					<zip destfile="${addon.libs.zip}" whenempty="create">
+						<zipgroupfileset dir="${src}/org/zaproxy/zap/extension/@{name}/lib/" includes="*.jar" erroronmissingdir="false" />
+					</zip>
+
+					<jar jarfile="${dist}/${file}" update="true" compress="true">
+						<zipfileset dir="${build}" prefix="">
+							<include name="org/zaproxy/zap/extension/@{name}/**"/>
+						</zipfileset>
+						<zipfileset dir="${src}" prefix="">
+							<include name="org/zaproxy/zap/extension/@{name}/Messages*"/>
+						</zipfileset>
+						<zipfileset dir="${src}" prefix="">
+							<include name="org/zaproxy/zap/extension/@{name}/resources/**"/>
+						</zipfileset>
+						<zipfileset src="${addon.libs.zip}">
+							<exclude name="META-INF/*.DSA" />
+							<exclude name="META-INF/*.SF" />
+						</zipfileset>
+						<zipfileset dir="${src}" includes="org/zaproxy/zap/extension/@{name}/ZapAddOn.xml" fullpath="ZapAddOn.xml"/>
+					</jar>
+					<delete file="${addon.libs.zip}" />
+
+					<!-- Include add-on files -->
+					<jar jarfile="${dist}/${file}" update="true" compress="true">
+						<zipfileset dir="${src}/org/zaproxy/zap/extension/@{name}/files/" prefix="" erroronmissingdir="false" />
+					</jar>
+
+					<!-- allow callers to do extra actions before generating the hash and determine the size of the file -->
+					<extra-actions />
+
+					<local name="length" />
+					<length file="${dist}/${file}" property="length" />
+
+					<local name="sha1hash" />
+					<checksum file="${dist}/${file}"  algorithm="SHA-1"  property="sha1hash"/>
+
+					<local name="hash" />
+					<property name="hash"  value="SHA1:${sha1hash}"/>
+
+					<local name="yyyymmdd" />
+					<tstamp>
+						<format property="yyyymmdd" pattern="yyyy-MM-dd"/>
+					</tstamp>
+
+					<appendzapaddonfile from="${src}/org/zaproxy/zap/extension/@{name}/ZapAddOn.xml" to="${versions.file}"
+						addonid="@{addonid}" filename="${file}" status="${zapaddon.status}" size="${length}" hash="${hash}" date="${yyyymmdd}"
+						url="${zap.download.url}/${file}" />
+
+				</sequential>
+			</macrodef>
+	
+	<target name="build" depends="compile" description="build the extension">
+		<delete file="${versions.file}"/>
+		
+		<!-- 'Standard' addons (keep in alphabetical order ;) -->
+		<build-addon-without-help-indexes name="endpointfinder" />
+		<deploy-addon name="endpointfinder" />
+	</target>
+
+	<macrodef name="deploy-addon" description="deploy the specified extension">
+		<attribute name="name"/>
+		<sequential>
+			<copy todir="${zap.plugin.dir}">
+				<fileset dir="${dist}">
+				<include name="@{name}-*.zap"/>
+				</fileset>
+			</copy>
+		</sequential>
+	</macrodef>
+
+</project>

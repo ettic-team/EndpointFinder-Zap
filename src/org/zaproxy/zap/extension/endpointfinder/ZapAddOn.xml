@@ -1,0 +1,19 @@
+<zapaddon>
+    <name>EndpointFinder</name>
+    <version>12</version>
+    <status>beta</status>
+    <description>Zap plugin for EndpointFinder</description>
+    <author>Olivier Arteau</author>
+    <url/>
+    <changes></changes>
+    <dependson/>
+    <extensions>
+        <extension>org.zaproxy.zap.extension.endpointfinder.ExtensionEndpointFinder</extension>
+    </extensions>
+    <ascanrules/>
+    <pscanrules>
+    </pscanrules>
+    <files/>
+    <not-before-version>2.7.0</not-before-version>
+    <not-from-version></not-from-version>
+</zapaddon>
