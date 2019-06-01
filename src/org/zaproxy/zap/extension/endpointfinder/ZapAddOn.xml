@@ -1,6 +1,6 @@
 <zapaddon>
     <name>EndpointFinder</name>
-    <version>12</version>
+    <version>13</version>
     <status>beta</status>
     <description>Zap plugin for EndpointFinder</description>
     <author>Olivier Arteau</author>
